@@ -22,7 +22,7 @@ static const arp_pkt_t arp_init_pkt = {
  */
 map_t arp_table;
 
-/**
+/**  
  * @brief arp buffer，<ip,buf_t>的容器
  * 
  */
@@ -58,7 +58,16 @@ void arp_print()
  */
 void arp_req(uint8_t *target_ip)
 {
-    // TO-DO
+    // 初始化txbuf
+    buf_init(&txbuf, sizeof(arp_pkt_t));
+    // 填写ARP报头
+    arp_pkt_t arp_pkt = arp_init_pkt;
+    arp_pkt.opcode16 = swap16(ARP_REQUEST); // 操作类型为请求，APR_REQUEST
+    memcpy(arp_pkt.target_ip, target_ip, NET_IP_LEN);
+    // 发送ARP报文
+    memcpy(txbuf.data, &arp_pkt, sizeof(arp_pkt));
+    uint8_t broadcast_mac[NET_MAC_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    ethernet_out(&txbuf, broadcast_mac, NET_PROTOCOL_ARP);
 }
 
 /**
@@ -69,7 +78,16 @@ void arp_req(uint8_t *target_ip)
  */
 void arp_resp(uint8_t *target_ip, uint8_t *target_mac)
 {
-    // TO-DO
+    // 初始化txbuf
+    buf_init(&txbuf, sizeof(arp_pkt_t));
+    // 填写ARP报头
+    arp_pkt_t arp_pkt = arp_init_pkt;
+    arp_pkt.opcode16 = swap16(ARP_REQUEST); // 操作类型为响应，ARP_REPLY
+    memcpy(arp_pkt.target_mac, target_mac, NET_MAC_LEN);
+    memcpy(arp_pkt.target_ip, target_ip, NET_IP_LEN);
+    // 发送ARP报文
+    memcpy(txbuf.data, &arp_pkt, sizeof(arp_pkt));
+    ethernet_out(&txbuf, target_mac, NET_PROTOCOL_ARP);
 }
 
 /**
@@ -80,7 +98,30 @@ void arp_resp(uint8_t *target_ip, uint8_t *target_mac)
  */
 void arp_in(buf_t *buf, uint8_t *src_mac)
 {
-    // TO-DO
+    // 判断数据包是否合法
+    if (buf->len < sizeof(arp_pkt_t)) return;
+    arp_pkt_t *arp_pkt_in = (arp_pkt_t *)buf->data;
+    if (arp_pkt_in->hw_type16 != swap16(ARP_HW_ETHER) ||
+        arp_pkt_in->pro_type16 != swap16(NET_PROTOCOL_IP) ||
+        arp_pkt_in->hw_len != NET_MAC_LEN ||
+        arp_pkt_in->pro_len != NET_IP_LEN) return;
+    uint16_t opcode =  arp_pkt_in->opcode16;
+    if (opcode != swap16(ARP_REQUEST) && opcode != swap16(ARP_REPLY)) return;
+    // 对于合法的数据包，更新ARP表项，增加该数据包来源IP与MAC的映射
+    map_set(&arp_table, arp_pkt_in->sender_ip, src_mac);
+    // 查看该接收报文的IP地址是否有对应的数据包缓存，若有则发送该数据包并从缓存中删除
+    buf_t *buf_in_map = (buf_t *)map_get(&arp_buf, arp_pkt_in->sender_ip);
+    if (buf_in_map != NULL) {
+        ethernet_out(buf_in_map, arp_pkt_in->sender_mac, NET_PROTOCOL_IP);
+        map_delete(&arp_buf, arp_pkt_in->sender_ip);
+        return;
+    }
+    
+    // 若没有缓存，判断该数据包是否为请求本机MAC的ARP请求，是则发送ARP响应
+    if (opcode == swap16(ARP_REQUEST) && memcmp(arp_pkt_in->target_ip, net_if_ip, NET_IP_LEN) == 0) {
+        arp_resp(arp_pkt_in->sender_ip, arp_pkt_in->sender_mac);
+    }
+    
 }
 
 /**
@@ -92,7 +133,18 @@ void arp_in(buf_t *buf, uint8_t *src_mac)
  */
 void arp_out(buf_t *buf, uint8_t *ip)
 {
-    // TO-DO
+    // 根据已知IP查ARP表，若存在对应MAC则直接发送
+    uint8_t *mac_in_map = (uint8_t *)map_get(&arp_table, ip);
+    if (mac_in_map != NULL) {
+        ethernet_out(buf, mac_in_map, NET_PROTOCOL_IP);
+        return;
+    }
+    // ARP表中不存在时，判断当前缓存中是否有数据包，若有则说明正在等待该IP回应ARP请求，此时不能再发送ARP请求
+    // 若没有缓存，则缓存该数据包，然后先发送ARP请求以获得目标IP对应的MAC地址
+    if (map_get(&arp_buf, ip) == NULL) {
+        map_set(&arp_buf, ip, buf);
+        arp_req(ip);
+    }
 }
 
 /**
