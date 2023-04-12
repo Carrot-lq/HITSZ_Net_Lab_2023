@@ -60,14 +60,13 @@ void arp_req(uint8_t *target_ip)
 {
     // 初始化txbuf
     buf_init(&txbuf, sizeof(arp_pkt_t));
-    // 填写ARP报头
+    // 填写ARP报头，在arp_init_pkt的基础上修改参数
     arp_pkt_t arp_pkt = arp_init_pkt;
     arp_pkt.opcode16 = swap16(ARP_REQUEST); // 操作类型为请求，APR_REQUEST
     memcpy(arp_pkt.target_ip, target_ip, NET_IP_LEN);
-    // 发送ARP报文
     memcpy(txbuf.data, &arp_pkt, sizeof(arp_pkt));
-    uint8_t broadcast_mac[NET_MAC_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-    ethernet_out(&txbuf, broadcast_mac, NET_PROTOCOL_ARP);
+    // 发送ARP报文
+    ethernet_out(&txbuf, ether_broadcast_mac, NET_PROTOCOL_ARP);
 }
 
 /**
