@@ -104,20 +104,19 @@ void arp_in(buf_t *buf, uint8_t *src_mac)
         arp_pkt_in->pro_type16 != swap16(NET_PROTOCOL_IP) ||
         arp_pkt_in->hw_len != NET_MAC_LEN ||
         arp_pkt_in->pro_len != NET_IP_LEN) return;
-    uint16_t opcode =  arp_pkt_in->opcode16;
-    if (opcode != swap16(ARP_REQUEST) && opcode != swap16(ARP_REPLY)) return;
+    uint16_t opcode = swap16(arp_pkt_in->opcode16);
+    if (opcode != ARP_REQUEST && opcode != ARP_REPLY) return;
     // 对于合法的数据包，更新ARP表项，增加该数据包来源IP与MAC的映射
     map_set(&arp_table, arp_pkt_in->sender_ip, src_mac);
-    // 查看该接收报文的IP地址是否有对应的数据包缓存，若有则发送该数据包并从缓存中删除
+    // 查看该接收报文的IP地址是否有对应的IP数据包缓存，若有则发送该IP数据包并从缓存中删除
     buf_t *buf_in_map = (buf_t *)map_get(&arp_buf, arp_pkt_in->sender_ip);
     if (buf_in_map != NULL) {
         ethernet_out(buf_in_map, arp_pkt_in->sender_mac, NET_PROTOCOL_IP);
         map_delete(&arp_buf, arp_pkt_in->sender_ip);
         return;
     }
-    
     // 若没有缓存，判断该数据包是否为请求本机MAC的ARP请求，是则发送ARP响应
-    if (opcode == swap16(ARP_REQUEST) && memcmp(arp_pkt_in->target_ip, net_if_ip, NET_IP_LEN) == 0) {
+    if (opcode == ARP_REQUEST && memcmp(arp_pkt_in->target_ip, net_if_ip, NET_IP_LEN) == 0) {
         arp_resp(arp_pkt_in->sender_ip, arp_pkt_in->sender_mac);
     }
     
@@ -132,7 +131,7 @@ void arp_in(buf_t *buf, uint8_t *src_mac)
  */
 void arp_out(buf_t *buf, uint8_t *ip)
 {
-    // 根据已知IP查ARP表，若存在对应MAC则直接发送
+    // 根据已知IP查ARP表，若存在对应MAC则直接发送传来的上层IP数据包
     uint8_t *mac_in_map = (uint8_t *)map_get(&arp_table, ip);
     if (mac_in_map != NULL) {
         ethernet_out(buf, mac_in_map, NET_PROTOCOL_IP);
