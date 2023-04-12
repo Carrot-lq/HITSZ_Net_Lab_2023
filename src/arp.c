@@ -82,7 +82,7 @@ void arp_resp(uint8_t *target_ip, uint8_t *target_mac)
     buf_init(&txbuf, sizeof(arp_pkt_t));
     // 填写ARP报头
     arp_pkt_t arp_pkt = arp_init_pkt;
-    arp_pkt.opcode16 = swap16(ARP_REQUEST); // 操作类型为响应，ARP_REPLY
+    arp_pkt.opcode16 = swap16(ARP_REPLY); // 操作类型为响应，ARP_REPLY
     memcpy(arp_pkt.target_mac, target_mac, NET_MAC_LEN);
     memcpy(arp_pkt.target_ip, target_ip, NET_IP_LEN);
     // 发送ARP报文
