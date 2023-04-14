@@ -18,7 +18,31 @@ map_t udp_table;
  */
 static uint16_t udp_checksum(buf_t *buf, uint8_t *src_ip, uint8_t *dst_ip)
 {
-    // TO-DO
+    // buf数据包括UDP头部与数据，计算校验和的范围还需覆盖一个伪头部
+    // 增加UDP伪头部，并备份其中数据
+    buf_add_header(buf, sizeof(udp_peso_hdr_t));
+    udp_peso_hdr_t backup_data;
+    memcpy(&backup_data, buf->data, sizeof(udp_peso_hdr_t));
+    // 填充伪头部
+    udp_peso_hdr_t *udp_peso_hdr = (udp_peso_hdr_t *)buf->data;
+    memcpy(udp_peso_hdr->src_ip, src_ip, NET_IP_LEN);
+    memcpy(udp_peso_hdr->dst_ip, dst_ip, NET_IP_LEN);
+    udp_peso_hdr->placeholder = 0;
+    udp_peso_hdr->protocol = NET_PROTOCOL_UDP;
+    udp_peso_hdr->total_len16 = swap16(buf->len - sizeof(udp_peso_hdr_t));
+    // 数据非偶数字长时填充一个字节的0
+    uint16_t checksum = 0;
+    if (buf->len % 2) {
+        buf_add_padding(buf, 1);
+        checksum = checksum16((uint16_t *)buf->data, buf->len);
+        buf_remove_padding(buf, 1);
+    } else {
+        checksum = checksum16((uint16_t *)buf->data, buf->len);
+    }
+    // 恢复伪头部位置原数据，去除伪头部
+    memcpy(buf->data, &backup_data, sizeof(udp_peso_hdr_t));
+    buf_remove_header(buf, sizeof(udp_peso_hdr_t));
+    return checksum;
 }
 
 /**
@@ -29,7 +53,27 @@ static uint16_t udp_checksum(buf_t *buf, uint8_t *src_ip, uint8_t *dst_ip)
  */
 void udp_in(buf_t *buf, uint8_t *src_ip)
 {
-    // TO-DO
+    // 判断数据包是否合法
+    if (buf->len < sizeof(udp_hdr_t)) return;
+    udp_hdr_t *udp_hdr_in = (udp_hdr_t *)buf->data;
+    if (buf->len < swap16(udp_hdr_in->total_len16)) return;
+    // 检验校验和，不一致则丢弃，一致则恢复校验和字段
+    uint16_t checksum_received = udp_hdr_in->checksum16;
+    udp_hdr_in->checksum16 = 0;
+    if (checksum_received != udp_checksum(buf, src_ip, net_if_ip)) return;
+    udp_hdr_in->checksum16 = checksum_received;
+    // 查找目的端口号对应的处理函数
+    uint16_t dst_port16 = swap16(udp_hdr_in->dst_port16);
+    udp_handler_t *handler = map_get(&udp_table, &dst_port16);
+    if (handler == NULL) {
+        // 若没找到，增加IPv4数据报头部，然后发送一个端口不可达的ICMP差错报文
+        buf_add_header(buf, sizeof(ip_hdr_t));
+        icmp_unreachable(buf, src_ip, ICMP_CODE_PORT_UNREACH);
+    } else {
+        // 去掉UDP报头，调用对应处理函数
+        buf_remove_header(buf, sizeof(udp_hdr_t));
+        (*handler)(buf->data, buf->len, src_ip, swap16(udp_hdr_in->src_port16));
+    }
 }
 
 /**
@@ -42,7 +86,17 @@ void udp_in(buf_t *buf, uint8_t *src_ip)
  */
 void udp_out(buf_t *buf, uint16_t src_port, uint8_t *dst_ip, uint16_t dst_port)
 {
-    // TO-DO
+    // 为数据包添加UDP首部并填充字段
+    buf_add_header(buf, sizeof(udp_hdr_t));
+    udp_hdr_t *udp_hdr_out = (udp_hdr_t *)buf->data;
+    udp_hdr_out->src_port16 = swap16(src_port);
+    udp_hdr_out->dst_port16 = swap16(dst_port);
+    udp_hdr_out->total_len16 = swap16(buf->len);
+    // 计算校验和
+    udp_hdr_out->checksum16 = 0;
+    udp_hdr_out->checksum16 = udp_checksum(buf, net_if_ip, dst_ip);
+    // 发送UDP数据包
+    ip_out(buf, dst_ip, NET_PROTOCOL_UDP);
 }
 
 /**
