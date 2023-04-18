@@ -26,6 +26,8 @@ typedef enum icmp_code
     ICMP_CODE_PROTOCOL_UNREACH = 2, // 协议不可达
     ICMP_CODE_PORT_UNREACH = 3      // 端口不可达
 } icmp_code_t;
+
+void icmp_req(uint8_t *dst_ip);
 void icmp_in(buf_t *buf, uint8_t *src_ip);
 void icmp_unreachable(buf_t *recv_buf, uint8_t *src_ip, icmp_code_t code);
 void icmp_init();

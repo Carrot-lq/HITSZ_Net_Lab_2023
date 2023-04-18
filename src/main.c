@@ -4,6 +4,7 @@
 #include "http.h"
 #include "driver.h"
 #include "time.h"
+#include "icmp.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat="
@@ -57,6 +58,10 @@ int main(int argc, char const *argv[])
 #ifdef HTTP
         http_server_run();
 #endif
+        // 测试ICMP请求
+        // 每隔1秒发送ICMP请求，共4次
+        static uint8_t target_ip[NET_IP_LEN] = {192,168,56,2};
+        icmp_ping_test(target_ip, 4);
         // 节约用电
         struct timespec sleepTime = { 0, 1000000 };
         nanosleep(&sleepTime, NULL);
