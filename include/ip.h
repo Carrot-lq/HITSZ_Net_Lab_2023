@@ -18,6 +18,16 @@ typedef struct ip_hdr
     uint8_t src_ip[NET_IP_LEN]; // 源IP
     uint8_t dst_ip[NET_IP_LEN]; // 目标IP
 } ip_hdr_t;
+
+typedef struct ipq
+{
+    uint8_t *data;
+    size_t len;
+    uint16_t offset;
+    uint16_t mf;
+    struct ipq *next;
+    struct timeval time;
+} ipq_t;
 #pragma pack()
 
 #define IP_HDR_LEN_PER_BYTE 4      //ip包头长度单位
