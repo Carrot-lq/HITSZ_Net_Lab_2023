@@ -10,10 +10,8 @@
  */
 void ethernet_in(buf_t *buf)
 {
-    // TO-DO finish
-    if(buf->len < sizeof(ether_hdr_t)){
-        return 0;
-    }
+    // 检查数据包长度，若小于以太网头部长度则丢弃
+    if(buf->len < sizeof(ether_hdr_t)) return ;
 
     ether_hdr_t *hdr = (ether_hdr_t *)buf->data;
 
@@ -30,7 +28,6 @@ void ethernet_in(buf_t *buf)
  */
 void ethernet_out(buf_t *buf, const uint8_t *mac, net_protocol_t protocol)
 {
-    // TO-DO finish
     if(buf->len < ETHERNET_MIN_TRANSPORT_UNIT){
         buf_add_padding(buf, ETHERNET_MIN_TRANSPORT_UNIT - buf->len);
     }
