@@ -60,7 +60,7 @@ int main(int argc, char const *argv[])
 #endif
         // 测试ICMP请求
         // 每隔1秒发送ICMP请求，共4次
-        static uint8_t target_ip[NET_IP_LEN] = {192,168,56,2};
+        static uint8_t target_ip[NET_IP_LEN] = {192,168,56,1};
         icmp_ping_test(target_ip, 4);
         // 节约用电
         struct timespec sleepTime = { 0, 1000000 };
