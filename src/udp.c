@@ -20,6 +20,7 @@ static uint16_t udp_checksum(buf_t *buf, uint8_t *src_ip, uint8_t *dst_ip)
 {
     // buf数据包括UDP头部与数据，计算校验和的范围还需覆盖一个伪头部
     // 增加UDP伪头部，并备份其中数据
+    int len = buf->len;
     buf_add_header(buf, sizeof(udp_peso_hdr_t));
     udp_peso_hdr_t backup_data;
     memcpy(&backup_data, buf->data, sizeof(udp_peso_hdr_t));
@@ -35,16 +36,15 @@ static uint16_t udp_checksum(buf_t *buf, uint8_t *src_ip, uint8_t *dst_ip)
     udp_peso_hdr.total_len16 = swap16(buf->len - sizeof(udp_peso_hdr_t));
     uint16_t checksum = 0;
     // 数据非偶数字长时填充一个字节的0
-    if (buf->len % 2) {
-        buf_add_padding(buf, 1);
-        
+    if (len % 2) {
+        buf_add_padding(buf, 1); 
     }
     // 将伪头部拷贝至数据之前
     memcpy(buf->data, &udp_peso_hdr, sizeof(udp_peso_hdr_t));
     // 计算校验和
     checksum = checksum16((uint16_t *)buf->data, buf->len);
     // 数据非偶数字长时去除填充的0
-    if (buf->len % 2) {
+    if (len % 2) {
         buf_remove_padding(buf, 1);
     } 
     // 恢复伪头部位置原数据，去除伪头部
