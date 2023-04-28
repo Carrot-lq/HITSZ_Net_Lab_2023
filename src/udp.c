@@ -23,22 +23,30 @@ static uint16_t udp_checksum(buf_t *buf, uint8_t *src_ip, uint8_t *dst_ip)
     buf_add_header(buf, sizeof(udp_peso_hdr_t));
     udp_peso_hdr_t backup_data;
     memcpy(&backup_data, buf->data, sizeof(udp_peso_hdr_t));
-    // 填充伪头部
-    udp_peso_hdr_t *udp_peso_hdr = (udp_peso_hdr_t *)buf->data;
-    memcpy(udp_peso_hdr->src_ip, src_ip, NET_IP_LEN);
-    memcpy(udp_peso_hdr->dst_ip, dst_ip, NET_IP_LEN);
-    udp_peso_hdr->placeholder = 0;
-    udp_peso_hdr->protocol = NET_PROTOCOL_UDP;
-    udp_peso_hdr->total_len16 = swap16(buf->len - sizeof(udp_peso_hdr_t));
-    // 数据非偶数字长时填充一个字节的0
+    // 准备伪头部
+    // 伪头部的位置为该包ip头位置，src_ip与dst_ip指针仍指向这块区域
+    // 不可使用这种方式获取伪头部udp_peso_hdr_t *udp_peso_hdr = (udp_peso_hdr_t *)buf->data;
+    // 这会导致若先memcpy了dst_ip，则指针src_ip的数据会被覆盖
+    udp_peso_hdr_t udp_peso_hdr;
+    memcpy(udp_peso_hdr.src_ip, src_ip, NET_IP_LEN);
+    memcpy(udp_peso_hdr.dst_ip, dst_ip, NET_IP_LEN);
+    udp_peso_hdr.placeholder = 0;
+    udp_peso_hdr.protocol = NET_PROTOCOL_UDP;
+    udp_peso_hdr.total_len16 = swap16(buf->len - sizeof(udp_peso_hdr_t));
     uint16_t checksum = 0;
+    // 数据非偶数字长时填充一个字节的0
     if (buf->len % 2) {
         buf_add_padding(buf, 1);
-        checksum = checksum16((uint16_t *)buf->data, buf->len);
-        buf_remove_padding(buf, 1);
-    } else {
-        checksum = checksum16((uint16_t *)buf->data, buf->len);
+        
     }
+    // 将伪头部拷贝至数据之前
+    memcpy(buf->data, &udp_peso_hdr, sizeof(udp_peso_hdr_t));
+    // 计算校验和
+    checksum = checksum16((uint16_t *)buf->data, buf->len);
+    // 数据非偶数字长时去除填充的0
+    if (buf->len % 2) {
+        buf_remove_padding(buf, 1);
+    } 
     // 恢复伪头部位置原数据，去除伪头部
     memcpy(buf->data, &backup_data, sizeof(udp_peso_hdr_t));
     buf_remove_header(buf, sizeof(udp_peso_hdr_t));
