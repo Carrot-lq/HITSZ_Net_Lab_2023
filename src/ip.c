@@ -159,7 +159,7 @@ void ip_in(buf_t *buf, uint8_t *src_mac)
     if (buf->len > total_len) buf_remove_padding(buf, buf->len - total_len);
     // 识别协议，合法的包括ICMP=1,TCP=6,UDP=17，否则发送ICMP协议不可达
     if (ip_hdr_in->protocol == NET_PROTOCOL_UDP ||
-        //ip_hdr_in->protocol == NET_PROTOCOL_TCP ||
+        ip_hdr_in->protocol == NET_PROTOCOL_TCP ||
         ip_hdr_in->protocol == NET_PROTOCOL_ICMP) {
         // 判断是否分片（MF为1或offset不为0），若分片则交由分片处理函数
         int mf = flags_fragment & IP_MORE_FRAGMENT;
