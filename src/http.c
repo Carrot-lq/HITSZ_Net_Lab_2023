@@ -82,7 +82,7 @@ static void close_http(tcp_connect_t* tcp) {
 static void send_file(tcp_connect_t* tcp, const char* url) {
     FILE* file;
     uint32_t size;
-    // const char* content_type = "text/html";
+    const char* content_type = "text/html";
     char file_path[255];
     char tx_buffer[1024];
 
@@ -93,9 +93,40 @@ static void send_file(tcp_connect_t* tcp, const char* url) {
 
     注意，本实验的WEB服务器网页存放在XHTTP_DOC_DIR目录中
     */
-
-   // TODO
-
+    // 根据url获取指定的文件
+    // XHTTP_DOC_DIR : "./htmldocs"
+    memcpy(file_path, XHTTP_DOC_DIR, sizeof(XHTTP_DOC_DIR));
+    strcat(file_path, url);
+    if(strcmp(url, "/") == 0){
+        strcat(file_path, "index.html");
+    }
+    file = fopen(file_path, "rb");
+    printf("file==NULL:%d\n",file==NULL);
+    // 若文件不存在，发送HTTP ERROR 404
+    if(file == NULL){
+        memset(tx_buffer, 0, sizeof(tx_buffer));
+        strcpy(tx_buffer, "HTTP/1.0 404 NOT FOUND\r\n");
+        strcat(tx_buffer, "Sever: \r\n");
+        strcat(tx_buffer, "Content-Type: text/html\r\n");
+        strcat(tx_buffer, "\r\n");
+        http_send(tcp, tx_buffer, strlen(tx_buffer));
+        return;
+    }
+    // 准备HTTP报头
+    memset(tx_buffer, 0, sizeof(tx_buffer));
+    strcpy(tx_buffer, "HTTP/1.0 200 OK\r\n");
+    strcat(tx_buffer, "Sever: \r\n");
+    strcat(tx_buffer, "Content-Type: \r\n");
+    strcat(tx_buffer, "\r\n");
+    http_send(tcp, tx_buffer, strlen(tx_buffer));
+    // 读取文件并发送
+    memset(tx_buffer, 0, sizeof(tx_buffer));
+    while(fread(tx_buffer, sizeof(char), sizeof(tx_buffer), file) > 0){
+        http_send(tcp, tx_buffer, sizeof(tx_buffer));
+        memset(tx_buffer, 0, sizeof(tx_buffer));
+    }
+    // 发送完毕后关闭文件
+    fclose(file);
 }
 
 static void http_handler(tcp_connect_t* tcp, connect_state_t state) {
@@ -129,37 +160,46 @@ void http_server_run(void) {
     char rx_buffer[1024];
 
     while ((tcp = http_fifo_out(&http_fifo_v)) != NULL) {
-        int i;
+        int i = 0, j = 0;
         char* c = rx_buffer;
 
 
         /*
         1、调用get_line从rx_buffer中获取一行数据，如果没有数据，则调用close_http关闭tcp，并继续循环
         */
-
-       // TODO
-
-
+        if (get_line(tcp, c, 100) == 0) {
+            
+            close_http(tcp);
+            continue;
+        }
+        printf("getline: len:%d, c:%s\n",strlen(c),c);
         /*
         2、检查是否有GET请求，如果没有，则调用close_http关闭tcp，并继续循环
         */
-
-       // TODO
-
+        char method_type[4];
+        memcpy(method_type, c, 3);
+        if (strcmp(method_type, "GET") != 0) {
+            close_http(tcp);
+            continue;
+        }
 
         /*
         3、解析GET请求的路径，注意跳过空格，找到GET请求的文件，调用send_file发送文件
         */
+        printf("while: len:%d, c:%s\n",strlen(c),c);
+        while(c[i+4] != ' '){
+            url_path[i] = c[i+4];
+            printf("%c",c[i+4]);
+            i++;
+        }
+        url_path[i] = '\0';
 
-       // TODO
-
+        send_file(tcp, url_path);
 
         /*
         4、调用close_http关掉连接
         */
-
-       // TODO
-
+        close_http(tcp);
 
         printf("!! final close\n");
     }
