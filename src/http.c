@@ -100,8 +100,9 @@ static void send_file(tcp_connect_t* tcp, const char* url) {
     if(strcmp(url, "/") == 0){
         strcat(file_path, "index.html");
     }
+    //printf("\nfile_path len:%d, file_path: %s\n",strlen(file_path),file_path);
     file = fopen(file_path, "rb");
-    printf("file==NULL:%d\n",file==NULL);
+    //printf("file==NULL:%d\n",file==NULL);
     // 若文件不存在，发送HTTP ERROR 404
     if(file == NULL){
         memset(tx_buffer, 0, sizeof(tx_buffer));
@@ -162,17 +163,14 @@ void http_server_run(void) {
     while ((tcp = http_fifo_out(&http_fifo_v)) != NULL) {
         int i = 0, j = 0;
         char* c = rx_buffer;
-
-
         /*
         1、调用get_line从rx_buffer中获取一行数据，如果没有数据，则调用close_http关闭tcp，并继续循环
         */
         if (get_line(tcp, c, 100) == 0) {
-            
             close_http(tcp);
             continue;
         }
-        printf("getline: len:%d, c:%s\n",strlen(c),c);
+        //printf("http_server_run: c len:%d, c:%s\n",strlen(c),c);
         /*
         2、检查是否有GET请求，如果没有，则调用close_http关闭tcp，并继续循环
         */
@@ -182,25 +180,21 @@ void http_server_run(void) {
             close_http(tcp);
             continue;
         }
-
         /*
         3、解析GET请求的路径，注意跳过空格，找到GET请求的文件，调用send_file发送文件
         */
-        printf("while: len:%d, c:%s\n",strlen(c),c);
         while(c[i+4] != ' '){
             url_path[i] = c[i+4];
             printf("%c",c[i+4]);
             i++;
         }
         url_path[i] = '\0';
-
+        //printf("http_server_run: url_path len:%d, url_path:%s\n",strlen(url_path),url_path);
         send_file(tcp, url_path);
-
         /*
         4、调用close_http关掉连接
         */
         close_http(tcp);
-
         printf("!! final close\n");
     }
 }
