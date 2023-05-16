@@ -20,12 +20,12 @@ void icmp_ping_test(uint8_t* target_ip, int times)
     static long max_use_time_ms = 0;
     static long total_use_time_ms = 0;
     static int first_flag = 1;
-    static int last_received_flag = 0;
+    static int last_received_flag = 0, last_lost_flag = 0;
     uint16_t pid = GetCurrentProcessId();   // windows
     gettimeofday(&nowtime, NULL);
     
     if (pkt_send_num > times) return;
-    if (pkt_send_num == times && last_received_flag == 1){
+    if (pkt_send_num == times && (last_received_flag || last_lost_flag)){
         printf("%d packets transmitted, %d received, %2.2f%% packet loss\n", pkt_send_num, pkt_rec_num, (float)(pkt_send_num - pkt_rec_num)/(pkt_send_num)*100);
         if(pkt_rec_num > 0) printf("min = %ldms, max = %ldms, avg = %ldms\n", min_use_time_ms, max_use_time_ms, total_use_time_ms/pkt_rec_num);
         pkt_send_num++;
@@ -42,6 +42,7 @@ void icmp_ping_test(uint8_t* target_ip, int times)
     buf_t *icmp_in_buf = map_get(&icmp_buf, &pid);
     if (icmp_in_buf != NULL && last_received_flag == 0) {
         last_received_flag = 1;
+        last_lost_flag = 0;
         pkt_rec_num++;
         // 获得收到报文的用时，更新时间相关信息
         struct timeval *use_time = (struct timeval *)(icmp_in_buf->data + sizeof(icmp_hdr_t));
@@ -55,8 +56,9 @@ void icmp_ping_test(uint8_t* target_ip, int times)
         // 从map中删除已接收的报文
         map_delete(&icmp_buf, &pid);
         last_received_flag = 0;
+        last_lost_flag = 0;
         // 发送下一个ping
-        printf("Ping %s %lld bytes of data.\n",iptos(target_ip), sizeof(icmp_hdr_t) + sizeof(struct timeval));
+        printf("1 Ping %s %lld bytes of data.\n",iptos(target_ip), sizeof(icmp_hdr_t) + sizeof(struct timeval));
         icmp_req(target_ip);
         pkt_send_num++;
         lasttime = nowtime;
@@ -65,6 +67,8 @@ void icmp_ping_test(uint8_t* target_ip, int times)
     // 超时，发送下一个ping
     if (nowtime.tv_sec >= lasttime.tv_sec + 5){
         printf("No responde!\n");
+        last_lost_flag = 1;
+        last_received_flag = 0;
         // ping
         printf("Ping %s %lld bytes of data.\n",iptos(target_ip), sizeof(icmp_hdr_t) + sizeof(struct timeval));
         icmp_req(target_ip);
